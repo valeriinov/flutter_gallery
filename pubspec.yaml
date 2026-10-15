@@ -1,6 +1,6 @@
 name: flutter_gallery
 description: "Android system picker images with persisted access and the app's own images, read without media permissions."
-version: 0.1.1
+version: 0.1.2
 homepage: https://github.com/valeriinov/flutter_gallery
 publish_to: none
 

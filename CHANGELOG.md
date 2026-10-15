@@ -1,3 +1,7 @@
+## 0.1.2
+
+* Sizes system thumbnails on Android 10 and above to cover the requested square.
+
 ## 0.1.1
 
 * Keeps a picked image's URI in memory when its grant cannot persist.

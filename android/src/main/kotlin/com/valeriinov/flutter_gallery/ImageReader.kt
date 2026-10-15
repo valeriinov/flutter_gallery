@@ -25,7 +25,7 @@ internal class ImageReader(context: Context) {
     fun readThumbnail(uri: String, size: Int): ByteArray {
         val parsed = Uri.parse(uri)
         val bitmap = if (canLoadSystemThumbnail(parsed)) {
-            resolver.loadThumbnail(parsed, Size(size, size), null)
+            loadSystemThumbnail(parsed, size)
         } else {
             decodeThumbnail(parsed, size)
         }
@@ -53,6 +53,14 @@ internal class ImageReader(context: Context) {
     private fun canLoadSystemThumbnail(uri: Uri): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri.scheme == ContentResolver.SCHEME_CONTENT
 
+    /** `loadThumbnail` fits the image inside the requested size rather than covering it. */
+    private fun loadSystemThumbnail(uri: Uri, size: Int): Bitmap {
+        val requested = size * SYSTEM_THUMBNAIL_OVERSCAN
+        val bitmap = resolver.loadThumbnail(uri, Size(requested, requested), null)
+
+        return transform(bitmap, size, Matrix())
+    }
+
     private fun decodeThumbnail(uri: Uri, size: Int): Bitmap {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         open(uri).use { BitmapFactory.decodeStream(it, null, bounds) }
@@ -62,8 +70,14 @@ internal class ImageReader(context: Context) {
         val decoded = open(uri).use { BitmapFactory.decodeStream(it, null, options) }
             ?: throw IOException("The image does not decode")
         val exif = open(uri).use { ExifInterface(it) }
+        val orientation = Matrix().apply {
+            postRotate(exif.rotationDegrees.toFloat())
+            if (exif.isFlipped) {
+                postScale(-1f, 1f)
+            }
+        }
 
-        return transform(decoded, size, exif)
+        return transform(decoded, size, orientation)
     }
 
     private fun open(uri: Uri): InputStream =
@@ -78,14 +92,11 @@ internal class ImageReader(context: Context) {
         return sample
     }
 
-    private fun transform(bitmap: Bitmap, size: Int, exif: ExifInterface): Bitmap {
+    private fun transform(bitmap: Bitmap, size: Int, orientation: Matrix): Bitmap {
         val scale = minOf(1f, size.toFloat() / minOf(bitmap.width, bitmap.height))
         val matrix = Matrix().apply {
             postScale(scale, scale)
-            postRotate(exif.rotationDegrees.toFloat())
-            if (exif.isFlipped) {
-                postScale(-1f, 1f)
-            }
+            postConcat(orientation)
         }
         if (matrix.isIdentity) {
             return bitmap
@@ -112,5 +123,6 @@ internal class ImageReader(context: Context) {
         private const val DIR_NAME = "flutter_gallery"
         private const val DEFAULT_EXTENSION = "jpg"
         private const val JPEG_QUALITY = 90
+        private const val SYSTEM_THUMBNAIL_OVERSCAN = 2
     }
 }
