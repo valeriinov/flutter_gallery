@@ -13,6 +13,7 @@ import org.json.JSONArray
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
+import java.io.InputStream
 import java.util.UUID
 
 /**
@@ -28,13 +29,12 @@ internal class ImageStore(context: Context) {
 
     @Synchronized
     fun addPicked(picked: List<Uri>): List<String> {
-        picked.asReversed().forEach { uri ->
-            persistGrant(uri)
-            prepend(uri.toString())
-        }
+        val listed = picked.map { uri -> listPicked(uri) }
+        listed.asReversed().forEach { uri -> prepend(uri) }
         writeUris()
+        trimKept()
 
-        return picked.map { it.toString() }
+        return listed
     }
 
     fun load(offset: Int, limit: Int): List<String> {
@@ -80,10 +80,7 @@ internal class ImageStore(context: Context) {
 
     fun keep(path: String): String {
         val source = File(path)
-        keptDir.mkdirs()
-        val target = File(keptDir, "${UUID.randomUUID()}.${source.extension.ifEmpty { DEFAULT_EXTENSION }}")
-        source.copyTo(target)
-        val uri = Uri.fromFile(target).toString()
+        val uri = source.inputStream().use { input -> copyToKept(input, source.extension) }
         addOwn(uri)
         trimKept()
 
@@ -96,13 +93,48 @@ internal class ImageStore(context: Context) {
         return MutableList(saved.length()) { index -> saved.getString(index) }
     }
 
-    private fun persistGrant(uri: Uri) {
+    /**
+     * The Google Play services picker grants no persistable access, so the
+     * plugin keeps a copy of what it picked there.
+     */
+    private fun listPicked(uri: Uri): String {
+        if (tryPersistGrant(uri)) {
+            return uri.toString()
+        }
+        val copy = tryCopyToKept(uri)
+        if (copy != null) {
+            return copy
+        }
+        memoryOnlyUris.add(uri.toString())
+
+        return uri.toString()
+    }
+
+    private fun tryPersistGrant(uri: Uri): Boolean =
         try {
             resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             memoryOnlyUris.remove(uri.toString())
+            true
         } catch (e: SecurityException) {
-            memoryOnlyUris.add(uri.toString())
+            false
         }
+
+    private fun tryCopyToKept(uri: Uri): String? =
+        try {
+            val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(resolver.getType(uri))
+            resolver.openInputStream(uri)?.use { input -> copyToKept(input, extension.orEmpty()) }
+        } catch (e: IOException) {
+            null
+        } catch (e: SecurityException) {
+            null
+        }
+
+    private fun copyToKept(input: InputStream, extension: String): String {
+        keptDir.mkdirs()
+        val target = File(keptDir, "${UUID.randomUUID()}.${extension.ifEmpty { DEFAULT_EXTENSION }}")
+        target.outputStream().use { output -> input.copyTo(output) }
+
+        return Uri.fromFile(target).toString()
     }
 
     private fun prepend(uri: String) {

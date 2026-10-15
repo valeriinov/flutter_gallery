@@ -10,7 +10,7 @@ All methods are static on `FlutterGallery`; images are addressed by URI strings.
 
 | method | does |
 |---|---|
-| `pickImages()` | opens the system picker (`PickMultipleVisualMedia`, images only), persists read access, adds the picked URIs to the top of the list |
+| `pickImages()` | opens the system picker (`PickMultipleVisualMedia`, images only), persists read access, adds the picked URIs to the top of the list; an image the picker grants no persistable access to (the Google Play services picker) is listed as a kept copy |
 | `loadImages(offset:, limit:)` | a page of URIs, newest first; deleted or revoked images are dropped from the list first |
 | `readThumbnail(uri, size)` | JPEG bytes covering a `size` square, rotated upright |
 | `readOriginal(uri)` | path of a copy in `cacheDir/flutter_gallery/` |

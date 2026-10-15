@@ -1,3 +1,8 @@
+## 0.1.3
+
+* Keeps a copy of an image picked in the Google Play services picker, which grants no persistable access.
+* Decodes a thumbnail itself when MediaProvider builds none.
+
 ## 0.1.2
 
 * Sizes system thumbnails on Android 10 and above to cover the requested square.

@@ -25,7 +25,7 @@ internal class ImageReader(context: Context) {
     fun readThumbnail(uri: String, size: Int): ByteArray {
         val parsed = Uri.parse(uri)
         val bitmap = if (canLoadSystemThumbnail(parsed)) {
-            loadSystemThumbnail(parsed, size)
+            tryLoadSystemThumbnail(parsed, size) ?: decodeThumbnail(parsed, size)
         } else {
             decodeThumbnail(parsed, size)
         }
@@ -53,10 +53,18 @@ internal class ImageReader(context: Context) {
     private fun canLoadSystemThumbnail(uri: Uri): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri.scheme == ContentResolver.SCHEME_CONTENT
 
-    /** `loadThumbnail` fits the image inside the requested size rather than covering it. */
-    private fun loadSystemThumbnail(uri: Uri, size: Int): Bitmap {
+    /**
+     * `loadThumbnail` fits the image inside the requested size rather than
+     * covering it, and on Android 10 MediaProvider builds none for a
+     * `media/external/file` URI.
+     */
+    private fun tryLoadSystemThumbnail(uri: Uri, size: Int): Bitmap? {
         val requested = size * SYSTEM_THUMBNAIL_OVERSCAN
-        val bitmap = resolver.loadThumbnail(uri, Size(requested, requested), null)
+        val bitmap = try {
+            resolver.loadThumbnail(uri, Size(requested, requested), null)
+        } catch (e: IOException) {
+            return null
+        }
 
         return transform(bitmap, size, Matrix())
     }
