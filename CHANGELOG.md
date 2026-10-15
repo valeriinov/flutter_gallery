@@ -1,3 +1,8 @@
+## 0.1.4
+
+* Opens the picker with the listed picker images selected on Android 16 and R extensions 15; an image the user deselects leaves the list.
+* Keeps the place of a picked image that is already listed.
+
 ## 0.1.3
 
 * Keeps a copy of an image picked in the Google Play services picker, which grants no persistable access.

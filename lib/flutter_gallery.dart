@@ -13,9 +13,14 @@ abstract final class FlutterGallery {
   static const MethodChannel _channel = MethodChannel('flutter_gallery');
 
   /// Opens the system picker for images and returns the URIs the user
-  /// picked, already added to the top of the list. An image the picker grants
-  /// no persistable access to is listed as a kept copy, whose URI is
-  /// returned instead. Returns an empty list when the user cancels.
+  /// picked. A newly picked URI is added to the top of the list, a listed one
+  /// keeps its place. An image the picker grants no persistable access to is
+  /// listed as a kept copy, whose URI is returned instead. Returns an empty
+  /// list when the user cancels.
+  ///
+  /// The platform picker on Android 16 and R extensions 15 opens with the
+  /// listed picker images selected; an image the user deselects is removed
+  /// from the list.
   static Future<List<String>> pickImages() async {
     final uris = await _channel.invokeListMethod<String>('pickImages');
 

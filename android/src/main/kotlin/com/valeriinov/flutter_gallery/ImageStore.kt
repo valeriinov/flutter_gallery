@@ -27,11 +27,20 @@ internal class ImageStore(context: Context) {
     private val uris: MutableList<String> by lazy { readSavedUris() }
     private val memoryOnlyUris = mutableSetOf<String>()
 
+    /** The newest [limit] listed URIs the system picker returned, which it can show as selected. */
     @Synchronized
-    fun addPicked(picked: List<Uri>): List<String> {
+    fun findPreselectable(limit: Int): List<Uri> =
+        uris.asSequence().map { Uri.parse(it) }.filter { isPickerUri(it) }.take(limit).toList()
+
+    /**
+     * Lists the [picked] URIs above the others; a URI already listed keeps its place. Removes
+     * the [deselected] URIs, which the picker showed as selected and the user deselected.
+     */
+    @Synchronized
+    fun addPicked(picked: List<Uri>, deselected: List<String>): List<String> {
         val listed = picked.map { uri -> listPicked(uri) }
-        listed.asReversed().forEach { uri -> prepend(uri) }
-        writeUris()
+        listed.asReversed().filter { it !in uris }.forEach { uri -> uris.add(0, uri) }
+        removeLocked(deselected)
         trimKept()
 
         return listed
@@ -128,6 +137,9 @@ internal class ImageStore(context: Context) {
         } catch (e: SecurityException) {
             null
         }
+
+    private fun isPickerUri(uri: Uri): Boolean =
+        uri.authority == MediaStore.AUTHORITY && uri.pathSegments.firstOrNull() == PICKER_PATH
 
     private fun copyToKept(input: InputStream, extension: String): String {
         keptDir.mkdirs()
@@ -258,6 +270,7 @@ internal class ImageStore(context: Context) {
         private const val PREFS_NAME = "flutter_gallery"
         private const val KEY_URIS = "uris"
         private const val DIR_NAME = "flutter_gallery"
+        private const val PICKER_PATH = "picker"
         private const val DEFAULT_EXTENSION = "jpg"
         private const val DEFAULT_MIME_TYPE = "image/jpeg"
     }

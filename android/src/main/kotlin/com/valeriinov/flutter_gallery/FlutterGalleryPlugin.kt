@@ -1,9 +1,14 @@
 package com.valeriinov.flutter_gallery
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.ext.SdkExtensions
+import android.provider.MediaStore
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -32,6 +37,7 @@ class FlutterGalleryPlugin :
     private lateinit var readExecutor: ExecutorService
     private var activityBinding: ActivityPluginBinding? = null
     private var pendingPick: Result? = null
+    private var preselected: List<String> = emptyList()
     private var isPickerOpen = false
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
@@ -65,6 +71,7 @@ class FlutterGalleryPlugin :
         detachActivity()
         pendingPick?.error(NO_ACTIVITY, "The activity was destroyed while the picker was open", null)
         pendingPick = null
+        preselected = emptyList()
         isPickerOpen = false
     }
 
@@ -99,7 +106,9 @@ class FlutterGalleryPlugin :
         val result = pendingPick
         pendingPick = null
         val picked = pickContract.parseResult(resultCode, data)
-        runAndReply(listExecutor, result) { store.addPicked(picked) }
+        val deselected = findDeselected(resultCode, picked)
+        preselected = emptyList()
+        runAndReply(listExecutor, result) { store.addPicked(picked, deselected) }
 
         return true
     }
@@ -127,14 +136,47 @@ class FlutterGalleryPlugin :
         val request = PickVisualMediaRequest.Builder()
             .setMediaType(ActivityResultContracts.PickVisualMedia.ImageOnly)
             .build()
+        val intent = pickContract.createIntent(activity, request)
+        val preselection = if (canPreselect(intent)) {
+            store.findPreselectable(intent.getIntExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 0))
+        } else {
+            emptyList()
+        }
+        if (preselection.isNotEmpty()) {
+            intent.putParcelableArrayListExtra(MediaStore.EXTRA_PICKER_PRE_SELECTION_URIS, ArrayList(preselection))
+        }
         try {
-            activity.startActivityForResult(pickContract.createIntent(activity, request), PICK_REQUEST_CODE)
+            activity.startActivityForResult(intent, PICK_REQUEST_CODE)
         } catch (e: ActivityNotFoundException) {
             result.error(IO_ERROR, e.message, null)
             return
         }
         isPickerOpen = true
         pendingPick = result
+        preselected = preselection.map { it.toString() }
+    }
+
+    /** Only the platform picker on Android 16 or R extensions 15 shows URIs as selected. */
+    private fun canPreselect(intent: Intent): Boolean {
+        if (intent.action != MediaStore.ACTION_PICK_IMAGES) {
+            return false
+        }
+        if (Build.VERSION.SDK_INT >= PRESELECTION_SDK) {
+            return true
+        }
+
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            SdkExtensions.getExtensionVersion(Build.VERSION_CODES.R) >= PRESELECTION_R_EXTENSION
+    }
+
+    /** A cancelled picker returns no URIs and deselects nothing. */
+    private fun findDeselected(resultCode: Int, picked: List<Uri>): List<String> {
+        if (resultCode != Activity.RESULT_OK) {
+            return emptyList()
+        }
+        val pickedUris = picked.map { it.toString() }.toSet()
+
+        return preselected.filter { it !in pickedUris }
     }
 
     private fun runAndReply(executor: ExecutorService, result: Result?, block: () -> Any?) {
@@ -161,6 +203,8 @@ class FlutterGalleryPlugin :
         private const val CHANNEL_NAME = "flutter_gallery"
         private const val PICK_REQUEST_CODE = 0x4647
         private const val READ_THREADS = 4
+        private const val PRESELECTION_SDK = 36
+        private const val PRESELECTION_R_EXTENSION = 15
         private const val PICKER_OPEN = "picker_open"
         private const val NO_ACTIVITY = "no_activity"
         private const val NOT_FOUND = "not_found"
