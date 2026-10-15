@@ -12,7 +12,7 @@ All methods are static on `FlutterGallery`; images are addressed by URI strings.
 |---|---|
 | `pickImages()` | opens the system picker (`PickMultipleVisualMedia`, images only), persists read access, adds the picked URIs to the top of the list |
 | `loadImages(offset:, limit:)` | a page of URIs, newest first; deleted or revoked images are dropped from the list first |
-| `readThumbnail(uri, size)` | JPEG bytes, longest side at most `size`, rotated upright |
+| `readThumbnail(uri, size)` | JPEG bytes covering a `size` square, rotated upright |
 | `readOriginal(uri)` | path of a copy in `cacheDir/flutter_gallery/` |
 | `hasImage(uri)` | the URI is in the list and still opens; removes nothing |
 | `saveImage(path, fileName)` | inserts the file into MediaStore under `Pictures/GoGoBag`, adds it to the list |

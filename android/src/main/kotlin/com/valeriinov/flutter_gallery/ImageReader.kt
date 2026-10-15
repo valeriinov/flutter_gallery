@@ -79,7 +79,7 @@ internal class ImageReader(context: Context) {
     }
 
     private fun transform(bitmap: Bitmap, size: Int, exif: ExifInterface): Bitmap {
-        val scale = minOf(1f, size.toFloat() / maxOf(bitmap.width, bitmap.height))
+        val scale = minOf(1f, size.toFloat() / minOf(bitmap.width, bitmap.height))
         val matrix = Matrix().apply {
             postScale(scale, scale)
             postRotate(exif.rotationDegrees.toFloat())

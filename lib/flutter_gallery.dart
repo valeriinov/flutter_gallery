@@ -37,11 +37,11 @@ abstract final class FlutterGallery {
     return uris ?? const [];
   }
 
-  /// Returns JPEG bytes of a thumbnail no larger than [size] on each side,
-  /// rotated upright.
+  /// Returns JPEG bytes of a thumbnail that covers a [size] square, rotated
+  /// upright.
   ///
   /// The [uri] parameter is an image URI from the list.
-  /// The [size] parameter is the longest side of the thumbnail, in pixels.
+  /// The [size] parameter is the side of that square, in pixels.
   static Future<Uint8List> readThumbnail(String uri, int size) async {
     final bytes = await _channel.invokeMethod<Uint8List>('readThumbnail', {
       'uri': uri,

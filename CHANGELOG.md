@@ -1,3 +1,11 @@
+## 0.1.1
+
+* Keeps a picked image's URI in memory when its grant cannot persist.
+* Lists images page by page without probing the whole list.
+* Sizes thumbnails to cover the requested square.
+* Removes the MediaStore row a failed save inserted on Android 9 and below.
+* Lowers the Dart SDK constraint to ^3.12.2.
+
 ## 0.1.0
 
 * Android system picker for images with persisted read access.

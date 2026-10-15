@@ -71,19 +71,19 @@ class FlutterGalleryPlugin :
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
             "pickImages" -> pickImages(result)
-            "loadImages" -> run(listExecutor, result) {
+            "loadImages" -> runAndReply(listExecutor, result) {
                 store.load(call.requireArgument("offset"), call.requireArgument("limit"))
             }
-            "hasImage" -> run(listExecutor, result) { store.has(call.requireArgument("uri")) }
-            "saveImage" -> run(listExecutor, result) {
+            "hasImage" -> runAndReply(listExecutor, result) { store.has(call.requireArgument("uri")) }
+            "saveImage" -> runAndReply(listExecutor, result) {
                 store.save(call.requireArgument("path"), call.requireArgument("fileName"))
             }
-            "keepImage" -> run(listExecutor, result) { store.keep(call.requireArgument("path")) }
-            "readThumbnail" -> run(readExecutor, result) {
+            "keepImage" -> runAndReply(listExecutor, result) { store.keep(call.requireArgument("path")) }
+            "readThumbnail" -> runAndReply(readExecutor, result) {
                 reader.readThumbnail(call.requireArgument("uri"), call.requireArgument("size"))
             }
-            "readOriginal" -> run(readExecutor, result) { reader.readOriginal(call.requireArgument("uri")) }
-            "clearCache" -> run(readExecutor, result) {
+            "readOriginal" -> runAndReply(readExecutor, result) { reader.readOriginal(call.requireArgument("uri")) }
+            "clearCache" -> runAndReply(readExecutor, result) {
                 reader.clearCache()
                 null
             }
@@ -99,7 +99,7 @@ class FlutterGalleryPlugin :
         val result = pendingPick
         pendingPick = null
         val picked = pickContract.parseResult(resultCode, data)
-        run(listExecutor, result) { store.addPicked(picked) }
+        runAndReply(listExecutor, result) { store.addPicked(picked) }
 
         return true
     }
@@ -137,8 +137,7 @@ class FlutterGalleryPlugin :
         pendingPick = result
     }
 
-    /** Runs [block] on [executor] and replies to [result], if any, on the main thread. */
-    private fun run(executor: ExecutorService, result: Result?, block: () -> Any?) {
+    private fun runAndReply(executor: ExecutorService, result: Result?, block: () -> Any?) {
         executor.execute {
             try {
                 val value = block()

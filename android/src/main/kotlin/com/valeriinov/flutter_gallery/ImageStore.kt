@@ -39,13 +39,23 @@ internal class ImageStore(context: Context) {
 
     fun load(offset: Int, limit: Int): List<String> {
         val snapshot = synchronized(this) { uris.toList() }
-        val probes = snapshot.associateWith { uri -> probe(uri) }
-        val gone = snapshot.filter { uri -> probes[uri] == Probe.GONE }
+        val opening = mutableListOf<String>()
+        val gone = mutableListOf<String>()
+        for (uri in snapshot) {
+            if (opening.size == offset + limit) {
+                break
+            }
+            when (probe(uri)) {
+                Probe.OPENS -> opening.add(uri)
+                Probe.GONE -> gone.add(uri)
+                Probe.UNAVAILABLE -> Unit
+            }
+        }
         if (gone.isNotEmpty()) {
             remove(gone)
         }
 
-        return snapshot.filter { uri -> probes[uri] == Probe.OPENS }.drop(offset).take(limit)
+        return opening.drop(offset)
     }
 
     fun has(uri: String): Boolean {
@@ -88,36 +98,11 @@ internal class ImageStore(context: Context) {
 
     private fun persistGrant(uri: Uri) {
         try {
-            takeGrant(uri)
-        } catch (e: SecurityException) {
-            retryAtGrantLimit(uri)
-        }
-    }
-
-    private fun takeGrant(uri: Uri) {
-        resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        memoryOnlyUris.remove(uri.toString())
-    }
-
-    private fun retryAtGrantLimit(uri: Uri) {
-        val grants = ownGrants()
-        if (grants.size < GRANT_LIMIT) {
-            memoryOnlyUris.add(uri.toString())
-            return
-        }
-        removeLocked(grants.takeLast(1))
-        try {
-            takeGrant(uri)
+            resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            memoryOnlyUris.remove(uri.toString())
         } catch (e: SecurityException) {
             memoryOnlyUris.add(uri.toString())
         }
-    }
-
-    /** Own URIs holding a persisted grant, newest first. */
-    private fun ownGrants(): List<String> {
-        val granted = resolver.persistedUriPermissions.map { it.uri.toString() }.toSet()
-
-        return uris.filter { it in granted }
     }
 
     private fun prepend(uri: String) {
@@ -197,7 +182,12 @@ internal class ImageStore(context: Context) {
         }
         val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
             ?: throw IOException("MediaStore insert failed")
-        writeTo(uri, source)
+        try {
+            writeTo(uri, source)
+        } catch (e: Exception) {
+            resolver.delete(uri, null, null)
+            throw e
+        }
 
         return uri
     }
@@ -228,7 +218,6 @@ internal class ImageStore(context: Context) {
     private enum class Probe { OPENS, GONE, UNAVAILABLE }
 
     companion object {
-        /** The shared folder under Pictures that [save] writes into. */
         const val SAVE_FOLDER = "GoGoBag"
 
         /** The most images [keep] holds; the oldest copies past it are deleted. */
@@ -239,8 +228,5 @@ internal class ImageStore(context: Context) {
         private const val DIR_NAME = "flutter_gallery"
         private const val DEFAULT_EXTENSION = "jpg"
         private const val DEFAULT_MIME_TYPE = "image/jpeg"
-
-        /** Persisted URI grants the system holds per app; unverified on devices. */
-        private val GRANT_LIMIT = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) 512 else 128
     }
 }
